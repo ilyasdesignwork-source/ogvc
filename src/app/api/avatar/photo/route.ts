@@ -19,12 +19,13 @@ export async function POST(request: Request) {
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json({ error: "Выберите файл" }, { status: 400 });
   }
+  const imageFile = file as File;
 
-  if (!file.type.startsWith("image/")) {
+  if (!imageFile.type.startsWith("image/")) {
     return NextResponse.json({ error: "Нужен файл изображения" }, { status: 400 });
   }
 
-  if (file.size > MAX_FILE_SIZE_BYTES) {
+  if (imageFile.size > MAX_FILE_SIZE_BYTES) {
     return NextResponse.json(
       { error: "Файл больше 1MB после обработки" },
       { status: 400 },
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
 
   const { error: uploadError } = await supabase.storage
     .from("avatar-photos")
-    .upload(objectPath, file, {
+    .upload(objectPath, imageFile, {
       upsert: true,
       contentType: "image/webp",
     });

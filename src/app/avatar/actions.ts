@@ -72,22 +72,23 @@ export async function uploadAvatarPhoto(formData: FormData) {
   if (!(file instanceof File) || file.size === 0) {
     redirect(`/avatar?tab=photo&message=${encodeURIComponent("Выберите файл")}`);
   }
+  const imageFile = file as File;
 
-  if (!file.type.startsWith("image/")) {
+  if (!imageFile.type.startsWith("image/")) {
     redirect(
       `/avatar?tab=photo&message=${encodeURIComponent("Нужен файл изображения")}`,
     );
   }
 
-  const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const extension = imageFile.name.split(".").pop()?.toLowerCase() || "jpg";
   const safeExtension = extension.replace(/[^a-z0-9]/g, "") || "jpg";
   const objectPath = `${user.id}/avatar.${safeExtension}`;
 
   const { error: uploadError } = await supabase.storage
     .from("avatar-photos")
-    .upload(objectPath, file, {
+    .upload(objectPath, imageFile, {
       upsert: true,
-      contentType: file.type,
+      contentType: imageFile.type,
     });
 
   if (uploadError) {
