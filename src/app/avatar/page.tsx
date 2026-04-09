@@ -4,6 +4,7 @@ import { getSiteTextMap } from "@/lib/site-texts";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AvatarPhotoUploader from "./avatar-photo-uploader";
+import AvatarSuccessPopup from "./avatar-success-popup";
 
 type AvatarPageProps = {
   searchParams: Promise<{ message?: string }>;
@@ -60,6 +61,7 @@ export default async function AvatarPage({ searchParams }: AvatarPageProps) {
           {params.message}
         </p>
       ) : null}
+      <AvatarSuccessPopup message={params.message} />
 
       <section className="mt-8 rounded-xl border border-zinc-800 bg-zinc-900/70 p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">

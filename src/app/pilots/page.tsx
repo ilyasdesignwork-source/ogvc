@@ -12,7 +12,7 @@ export default async function PilotsPage() {
   const textMap = await getSiteTextMap(["pilots.title"]);
   const { data } = await supabase
     .from("avatars")
-    .select("user_id, display_name, name, team_name, team, rating")
+    .select("user_id, display_name, name, team_name, team, rating, photo_url")
     .order("rating", { ascending: false })
     .limit(20);
 
@@ -27,24 +27,49 @@ export default async function PilotsPage() {
         className="text-3xl font-bold"
       />
       <div className="mt-6 overflow-hidden rounded-xl border border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-zinc-900 text-zinc-400">
-            <tr>
-              <th className="px-4 py-3">Имя и фамилия</th>
-              <th className="px-4 py-3">Команда</th>
-              <th className="px-4 py-3">Общий рейтинг</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pilots.map((pilot) => (
-              <tr key={pilot.user_id} className="border-t border-zinc-800">
-                <td className="px-4 py-3">{pilot.display_name ?? pilot.name}</td>
-                <td className="px-4 py-3">{pilot.team_name ?? pilot.team}</td>
-                <td className="px-4 py-3">{pilot.rating}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="grid gap-4 bg-zinc-950 p-4 sm:grid-cols-2 lg:grid-cols-3">
+          {pilots.map((pilot) => {
+            const pilotName = pilot.display_name ?? pilot.name ?? "Rookie";
+            const pilotTeam = pilot.team_name ?? pilot.team ?? "SCUDERIA FERRARI HP";
+            const initials = pilotName
+              .split(" ")
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((part) => part[0]?.toUpperCase() ?? "")
+              .join("");
+
+            return (
+              <article
+                key={pilot.user_id}
+                className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4"
+              >
+                <div className="mb-4 flex items-center gap-3">
+                  {pilot.photo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={pilot.photo_url}
+                      alt={pilotName}
+                      className="h-16 w-16 rounded-full border border-zinc-700 object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-lg font-bold text-zinc-300">
+                      {initials || "R"}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold text-white">{pilotName}</p>
+                    <p className="truncate text-sm text-zinc-400">{pilotTeam}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-zinc-800 bg-black/40 p-3 text-center">
+                  <p className="text-xs uppercase tracking-wider text-zinc-500">Общий рейтинг</p>
+                  <p className="mt-1 text-2xl font-black text-red-500">{pilot.rating}</p>
+                </div>
+              </article>
+            );
+          })}
+        </div>
       </div>
     </main>
   );

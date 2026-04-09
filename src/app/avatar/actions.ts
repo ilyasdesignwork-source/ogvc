@@ -37,6 +37,87 @@ function reduceStats(stats: AvatarStats): AvatarStats {
   };
 }
 
+function isStatsConstraintError(error: { message?: string; code?: string } | null) {
+  if (!error) return false;
+  const message = String(error.message ?? "").toLowerCase();
+  return (
+    error.code === "23514" &&
+    (message.includes("check_stats_sum") || message.includes("check constraint"))
+  );
+}
+
+function isUpstream502Error(error: { message?: string; code?: string } | null) {
+  if (!error) return false;
+  const message = String(error.message ?? "").toLowerCase();
+  return (
+    message.includes("502 bad gateway") ||
+    message.includes("<center>cloudflare</center>") ||
+    message.includes("bad gateway")
+  );
+}
+
+function mapAvatarSaveError(error: { message?: string; code?: string } | null) {
+  if (!error) return "Не удалось сохранить аватар";
+
+  if (isUpstream502Error(error)) {
+    return "Сервис базы временно недоступен (502). Попробуйте снова через 10-30 секунд.";
+  }
+
+  if (isStatsConstraintError(error)) {
+    return "Не удалось сохранить: ограничение на сумму характеристик. Уменьшите статы.";
+  }
+
+  if (error.code === "23502") {
+    return "Не удалось сохранить: не заполнено обязательное поле профиля.";
+  }
+
+  if (error.code === "42501") {
+    return "Нет прав на сохранение аватара. Перелогиньтесь и попробуйте снова.";
+  }
+
+  return String(error.message ?? "Не удалось сохранить аватар");
+}
+
+function buildAvatarErrorRedirect(error: { message?: string; code?: string } | null) {
+  const message = mapAvatarSaveError(error);
+  const code = String(error?.code ?? "UNKNOWN");
+  const detail = String(error?.message ?? "No details").slice(0, 300);
+  return `/avatar/create?message=${encodeURIComponent(message)}&errorCode=${encodeURIComponent(
+    code,
+  )}&errorDetail=${encodeURIComponent(detail)}`;
+}
+
+async function upsertAvatarWithTimeout(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  payload: {
+    user_id: string;
+    display_name: string;
+    name: string;
+    team_name: string;
+    team: string;
+    speed: number;
+    awareness: number;
+    consistency: number;
+    overtaking: number;
+    racecraft: number;
+    rating: number;
+  },
+) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  try {
+    const result = await supabase
+      .from("avatars")
+      .upsert(payload, { onConflict: "user_id" })
+      .abortSignal(controller.signal);
+    return result.error as { message?: string; code?: string } | null;
+  } catch {
+    return { message: "Таймаут запроса к базе. Попробуйте еще раз.", code: "TIMEOUT" };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function saveAvatar(formData: FormData) {
   const supabase = await createClient();
   const {
@@ -55,44 +136,72 @@ export async function saveAvatar(formData: FormData) {
     racecraft: parseStat(formData, "racecraft"),
     tyreManagement: parseStat(formData, "tyreManagement"),
   };
-  let stats = enforceStatsBudget(buildFullStatsFromCore(coreStats));
-  let lastError: { message: string } | null = null;
 
-  for (let attempt = 0; attempt < 300; attempt += 1) {
-    const { rating } = calculateRating(stats);
-    const { error } = await supabase.from("avatars").upsert(
-      {
-        user_id: user.id,
-        display_name: displayName || "Rookie",
-        name: displayName || "Rookie",
-        team_name: teamName,
-        team: teamName,
-        speed: stats.speed,
-        awareness: stats.awareness,
-        consistency: stats.consistency,
-        overtaking: stats.overtaking,
-        racecraft: stats.racecraft,
-        rating,
-      },
-      { onConflict: "user_id" },
-    );
-
-    if (!error) {
-      redirect(`/avatar?message=${encodeURIComponent("Аватар сохранен")}`);
-    }
-
-    lastError = error;
-    if (!error.message.includes("check_stats_sum")) {
-      break;
-    }
-    stats = reduceStats(stats);
+  if (!teamName) {
+    redirect(`/avatar/create?message=${encodeURIComponent("Выберите команду")}`);
   }
 
-  if (lastError) {
-    redirect(`/avatar/create?message=${encodeURIComponent(lastError.message)}`);
+  const baseName = displayName || "Rookie";
+  const safeTeamName = teamName || "SCUDERIA FERRARI HP";
+  const initialStats = enforceStatsBudget(buildFullStatsFromCore(coreStats));
+  const initialRating = calculateRating(initialStats).rating;
+
+  let error = await upsertAvatarWithTimeout(supabase, {
+    user_id: user.id,
+    display_name: baseName,
+    name: baseName,
+    team_name: safeTeamName,
+    team: safeTeamName,
+    speed: initialStats.speed,
+    awareness: initialStats.awareness,
+    consistency: initialStats.consistency,
+    overtaking: initialStats.overtaking,
+    racecraft: initialStats.racecraft,
+    rating: initialRating,
+  });
+
+  // Single correction retry for DB stat constraint.
+  if (isStatsConstraintError(error)) {
+    const correctedStats = reduceStats(initialStats);
+    const correctedRating = calculateRating(correctedStats).rating;
+    error = await upsertAvatarWithTimeout(supabase, {
+      user_id: user.id,
+      display_name: baseName,
+      name: baseName,
+      team_name: safeTeamName,
+      team: safeTeamName,
+      speed: correctedStats.speed,
+      awareness: correctedStats.awareness,
+      consistency: correctedStats.consistency,
+      overtaking: correctedStats.overtaking,
+      racecraft: correctedStats.racecraft,
+      rating: correctedRating,
+    });
   }
 
-  redirect(`/avatar/create?message=${encodeURIComponent("Не удалось сохранить аватар")}`);
+  // One additional retry for transient upstream 502.
+  if (isUpstream502Error(error)) {
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    error = await upsertAvatarWithTimeout(supabase, {
+      user_id: user.id,
+      display_name: baseName,
+      name: baseName,
+      team_name: safeTeamName,
+      team: safeTeamName,
+      speed: initialStats.speed,
+      awareness: initialStats.awareness,
+      consistency: initialStats.consistency,
+      overtaking: initialStats.overtaking,
+      racecraft: initialStats.racecraft,
+      rating: initialRating,
+    });
+  }
+
+  if (!error) {
+    redirect(`/avatar?message=${encodeURIComponent("Аватар сохранен")}`);
+  }
+
+  redirect(buildAvatarErrorRedirect(error));
 }
 
 export async function uploadAvatarPhoto(formData: FormData) {

@@ -11,7 +11,10 @@ MVP сайта в стиле F1 на `Next.js + Supabase`.
 ## Быстрый запуск
 
 1. Скопируйте `.env.example` в `.env.local` и заполните ключи Supabase.
-2. В Supabase SQL Editor выполните `supabase/schema.sql`.
+2. В Supabase SQL Editor выполните миграции по порядку:
+   - `supabase/migrations/20260409_000001_base_schema.sql`
+   - `supabase/migrations/20260409_000002_fix_avatars_and_site_texts.sql`
+   - `supabase/migrations/20260409_000003_admin_policies.sql`
 3. Установите зависимости и запустите проект:
 
 ```bash
@@ -23,7 +26,7 @@ npm run dev
 
 - Страница: `/admin`
 - Доступ к UI: только email из `ADMIN_EMAILS` в `.env.local`.
-- Для прав записи в Supabase выполните `supabase/admin_policies.sql`.
+- Права и политики уже входят в `supabase/migrations/20260409_000003_admin_policies.sql`.
 - Добавьте своего пользователя в админы:
 
 ```sql

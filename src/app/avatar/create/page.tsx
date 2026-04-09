@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AvatarBuilderForm from "../avatar-builder-form";
+import AvatarErrorPopup from "./avatar-error-popup";
 
 type CreateAvatarPageProps = {
-  searchParams: Promise<{ message?: string }>;
+  searchParams: Promise<{ message?: string; errorCode?: string; errorDetail?: string }>;
 };
 
 export default async function CreateAvatarPage({
@@ -38,6 +39,10 @@ export default async function CreateAvatarPage({
           {params.message}
         </p>
       ) : null}
+      <AvatarErrorPopup
+        errorCode={params.errorCode}
+        errorDetail={params.errorDetail}
+      />
 
       <AvatarBuilderForm
         defaultDisplayName={avatar?.display_name ?? ""}
