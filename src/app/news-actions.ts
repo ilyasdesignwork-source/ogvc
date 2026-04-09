@@ -48,17 +48,19 @@ export async function uploadNewsImage(formData: FormData) {
   if (!(file instanceof File) || file.size === 0) {
     done("Выберите изображение");
   }
-  if (!file.type.startsWith("image/")) {
+  const imageFile = file as File;
+
+  if (!imageFile.type.startsWith("image/")) {
     done("Нужен файл изображения");
   }
 
-  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const ext = imageFile.name.split(".").pop()?.toLowerCase() || "jpg";
   const safeExt = ext.replace(/[^a-z0-9]/g, "") || "jpg";
   const objectPath = `news/${id}.${safeExt}`;
 
   const { error: uploadError } = await supabase.storage
     .from("news-images")
-    .upload(objectPath, file, { upsert: true, contentType: file.type });
+    .upload(objectPath, imageFile, { upsert: true, contentType: imageFile.type });
 
   if (uploadError) {
     done(`Ошибка загрузки фото: ${uploadError.message}`);
