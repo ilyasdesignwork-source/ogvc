@@ -2,15 +2,39 @@
 
 import { redirect } from "next/navigation";
 import {
+  calculateRating,
   buildFullStatsFromCore,
-  calculateRatingFromCore,
   enforceStatsBudget,
+  type AvatarStats,
+  avatarRules,
 } from "@/lib/avatar-rating";
 import { createClient } from "@/lib/supabase/server";
 
 function parseStat(formData: FormData, name: string) {
   const raw = Number(formData.get(name) ?? 0);
   return Number.isFinite(raw) ? raw : 0;
+}
+
+function reduceStats(stats: AvatarStats): AvatarStats {
+  const entries = [
+    ["speed", stats.speed],
+    ["awareness", stats.awareness],
+    ["consistency", stats.consistency],
+    ["racecraft", stats.racecraft],
+    ["overtaking", stats.overtaking],
+  ] as const;
+
+  const reducible = entries
+    .filter(([, value]) => value > avatarRules.min)
+    .sort((a, b) => b[1] - a[1]);
+
+  if (reducible.length === 0) return stats;
+
+  const [key] = reducible[0];
+  return {
+    ...stats,
+    [key]: stats[key] - 1,
+  };
 }
 
 export async function saveAvatar(formData: FormData) {
@@ -31,31 +55,44 @@ export async function saveAvatar(formData: FormData) {
     racecraft: parseStat(formData, "racecraft"),
     tyreManagement: parseStat(formData, "tyreManagement"),
   };
-  const stats = enforceStatsBudget(buildFullStatsFromCore(coreStats));
-  const { rating } = calculateRatingFromCore(coreStats);
+  let stats = enforceStatsBudget(buildFullStatsFromCore(coreStats));
+  let lastError: { message: string } | null = null;
 
-  const { error } = await supabase.from("avatars").upsert(
-    {
-      user_id: user.id,
-      display_name: displayName || "Rookie",
-      name: displayName || "Rookie",
-      team_name: teamName,
-      team: teamName,
-      speed: stats.speed,
-      awareness: stats.awareness,
-      consistency: stats.consistency,
-      overtaking: stats.overtaking,
-      racecraft: stats.racecraft,
-      rating,
-    },
-    { onConflict: "user_id" },
-  );
+  for (let attempt = 0; attempt < 300; attempt += 1) {
+    const { rating } = calculateRating(stats);
+    const { error } = await supabase.from("avatars").upsert(
+      {
+        user_id: user.id,
+        display_name: displayName || "Rookie",
+        name: displayName || "Rookie",
+        team_name: teamName,
+        team: teamName,
+        speed: stats.speed,
+        awareness: stats.awareness,
+        consistency: stats.consistency,
+        overtaking: stats.overtaking,
+        racecraft: stats.racecraft,
+        rating,
+      },
+      { onConflict: "user_id" },
+    );
 
-  if (error) {
-    redirect(`/avatar/create?message=${encodeURIComponent(error.message)}`);
+    if (!error) {
+      redirect(`/avatar?message=${encodeURIComponent("Аватар сохранен")}`);
+    }
+
+    lastError = error;
+    if (!error.message.includes("check_stats_sum")) {
+      break;
+    }
+    stats = reduceStats(stats);
   }
 
-  redirect(`/avatar?message=${encodeURIComponent("Аватар сохранен")}`);
+  if (lastError) {
+    redirect(`/avatar/create?message=${encodeURIComponent(lastError.message)}`);
+  }
+
+  redirect(`/avatar/create?message=${encodeURIComponent("Не удалось сохранить аватар")}`);
 }
 
 export async function uploadAvatarPhoto(formData: FormData) {
