@@ -19,7 +19,14 @@ body {
 }
 
 button,
+[href],
+[tabindex]:not([tabindex="-1"]),
+[aria-haspopup="menu"],
+[aria-expanded],
+[data-interactive="true"],
+[data-clickable="true"],
 [role="button"],
+summary,
 input[type="button"],
 input[type="submit"],
 input[type="reset"] {
@@ -32,7 +39,14 @@ input[type="reset"] {
 }
 
 button:hover,
+[href]:hover,
+[tabindex]:not([tabindex="-1"]):hover,
+[aria-haspopup="menu"]:hover,
+[aria-expanded]:hover,
+[data-interactive="true"]:hover,
+[data-clickable="true"]:hover,
 [role="button"]:hover,
+summary:hover,
 input[type="button"]:hover,
 input[type="submit"]:hover,
 input[type="reset"]:hover {
@@ -41,7 +55,14 @@ input[type="reset"]:hover {
 }
 
 button:active,
+[href]:active,
+[tabindex]:not([tabindex="-1"]):active,
+[aria-haspopup="menu"]:active,
+[aria-expanded]:active,
+[data-interactive="true"]:active,
+[data-clickable="true"]:active,
 [role="button"]:active,
+summary:active,
 input[type="button"]:active,
 input[type="submit"]:active,
 input[type="reset"]:active {
@@ -49,7 +70,14 @@ input[type="reset"]:active {
 }
 
 button:focus-visible,
+[href]:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible,
+[aria-haspopup="menu"]:focus-visible,
+[aria-expanded]:focus-visible,
+[data-interactive="true"]:focus-visible,
+[data-clickable="true"]:focus-visible,
 [role="button"]:focus-visible,
+summary:focus-visible,
 input[type="button"]:focus-visible,
 input[type="submit"]:focus-visible,
 input[type="reset"]:focus-visible {
@@ -69,7 +97,14 @@ input[type="reset"]:disabled {
 
 @media (prefers-reduced-motion: reduce) {
   button,
+  [href],
+  [tabindex]:not([tabindex="-1"]),
+  [aria-haspopup="menu"],
+  [aria-expanded],
+  [data-interactive="true"],
+  [data-clickable="true"],
   [role="button"],
+  summary,
   input[type="button"],
   input[type="submit"],
   input[type="reset"] {
