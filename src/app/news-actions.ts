@@ -21,7 +21,7 @@ async function requireAdmin() {
   return supabase;
 }
 
-function done(message: string) {
+function done(message: string): never {
   revalidatePath("/");
   revalidatePath("/admin");
   redirect(`/?message=${encodeURIComponent(message)}`);
