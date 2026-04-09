@@ -2,17 +2,14 @@ import { redirect } from "next/navigation";
 import { isAdminEmail } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
-  createConstructorStanding,
   createDriverStanding,
   createNews,
   createTeam,
-  deleteConstructorStanding,
   deleteDriverStanding,
   deleteNews,
   deleteTeam,
   deleteAvatar,
   updateAvatar,
-  updateConstructorStanding,
   updateDriverStanding,
   updateNews,
   updateTeam,
@@ -32,14 +29,22 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     redirect("/auth?message=Нет+доступа+к+admin");
   }
 
-  const [{ data: news }, { data: avatars }, { data: teams }, { data: ds }, { data: cs }] =
+  const [{ data: news }, { data: avatars }, { data: teams }, { data: ds }] =
     await Promise.all([
       supabase.from("news").select("*").order("created_at", { ascending: false }).limit(20),
       supabase.from("avatars").select("*").order("rating", { ascending: false }).limit(30),
       supabase.from("teams").select("*").order("name", { ascending: true }),
       supabase.from("driver_standings").select("*").order("points", { ascending: false }),
-      supabase.from("constructor_standings").select("*").order("points", { ascending: false }),
     ]);
+  const constructorTotals = new Map<string, number>();
+  for (const row of ds ?? []) {
+    const teamName = row.team_name?.trim();
+    if (!teamName) continue;
+    constructorTotals.set(teamName, (constructorTotals.get(teamName) ?? 0) + Number(row.points ?? 0));
+  }
+  const cs = Array.from(constructorTotals.entries())
+    .map(([team_name, points]) => ({ team_name, points }))
+    .sort((a, b) => b.points - a.points);
 
   const params = await searchParams;
 
@@ -249,21 +254,32 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
       <section className="mt-8 rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
         <h2 className="text-xl font-semibold">Командный зачет</h2>
-        <form action={createConstructorStanding} className="mt-4 grid gap-3 md:grid-cols-[1fr_120px_auto]">
-          <input name="teamName" required placeholder="Команда" className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2" />
-          <input type="number" name="points" required placeholder="Очки" className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2" />
-          <button className="rounded-md bg-red-600 px-4 py-2 font-medium hover:bg-red-500">Добавить</button>
-        </form>
+        <p className="mt-2 text-sm text-zinc-400">
+          Рассчитывается автоматически как сумма очков пилотов одной команды из раздела
+          «Личный зачет».
+        </p>
         <div className="mt-4 space-y-3">
-          {(cs ?? []).map((row) => (
-            <form key={row.id} action={updateConstructorStanding} className="grid gap-2 rounded-lg border border-zinc-800 bg-zinc-950 p-3 md:grid-cols-[70px_1fr_120px_auto_auto]">
-              <input type="hidden" name="id" value={row.id} />
-              <input readOnly value={row.id} className="rounded-md border border-zinc-800 bg-zinc-900 px-2 py-2 text-xs text-zinc-400" />
-              <input name="teamName" defaultValue={row.team_name} className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2" />
-              <input type="number" name="points" defaultValue={row.points} className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2" />
-              <button className="rounded-md border border-zinc-600 px-3 py-2 hover:bg-zinc-800">Сохранить</button>
-              <button formAction={deleteConstructorStanding} className="rounded-md border border-red-900 px-3 py-2 text-red-300 hover:bg-red-950/40">Удалить</button>
-            </form>
+          {cs.map((row, index) => (
+            <div
+              key={row.team_name}
+              className="grid gap-2 rounded-lg border border-zinc-800 bg-zinc-950 p-3 md:grid-cols-[70px_1fr_120px]"
+            >
+              <input
+                readOnly
+                value={index + 1}
+                className="rounded-md border border-zinc-800 bg-zinc-900 px-2 py-2 text-xs text-zinc-400"
+              />
+              <input
+                readOnly
+                value={row.team_name}
+                className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2"
+              />
+              <input
+                readOnly
+                value={row.points}
+                className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2"
+              />
+            </div>
           ))}
         </div>
       </section>

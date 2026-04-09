@@ -10,12 +10,16 @@ export default async function ConstructorStandingsPage() {
   } = await supabase.auth.getUser();
   const isAdmin = isAdminEmail(user?.email);
   const textMap = await getSiteTextMap(["constructor_standings.title"]);
-  const { data } = await supabase
-    .from("constructor_standings")
-    .select("*")
-    .order("points", { ascending: false });
-
-  const rows = data ?? [];
+  const { data } = await supabase.from("driver_standings").select("team_name, points");
+  const teamTotals = new Map<string, number>();
+  for (const row of data ?? []) {
+    const teamName = row.team_name?.trim();
+    if (!teamName) continue;
+    teamTotals.set(teamName, (teamTotals.get(teamName) ?? 0) + Number(row.points ?? 0));
+  }
+  const rows = Array.from(teamTotals.entries())
+    .map(([team_name, points]) => ({ team_name, points }))
+    .sort((a, b) => b.points - a.points);
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
@@ -35,7 +39,7 @@ export default async function ConstructorStandingsPage() {
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="border-t border-zinc-800">
+              <tr key={row.team_name} className="border-t border-zinc-800">
                 <td className="px-4 py-3">{row.team_name}</td>
                 <td className="px-4 py-3">{row.points}</td>
               </tr>
